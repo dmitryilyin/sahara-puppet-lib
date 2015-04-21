@@ -32,6 +32,7 @@ module OpenStack
       attr_reader :plugin_name
       attr_reader :flavor_id
       attr_reader :node_processes
+      attr_reader :hadoop_version
       attr_reader :floating_ip_pool
       attr_reader :auto_security_group
 
@@ -41,7 +42,8 @@ module OpenStack
         @description = ngt_info['description']
         @plugin_name = ngt_info['plugin_name']
         @flavor_id = ngt_info['flavor_id']
-        @node_processes  = ngt_info['node_processes']
+        @node_processes = ngt_info['node_processes']
+        @hadoop_version = ngt_info['hadoop_version']
         @floating_ip_pool = ngt_info['floating_ip_pool']
         @auto_security_group = ngt_info['auto_security_group']
       end
@@ -178,6 +180,27 @@ module OpenStack
        else
           raise Exception::InvalidArgument, "Invalid :service_type parameter: #{@service_type}"
       end
+    end
+  end
+end
+
+module OpenStack
+  module Network
+    class Router
+
+      attr_reader :external_gateway_info
+
+      def initialize(router_info={})
+        @name = router_info['name']
+        @status = router_info['status']
+        @external_geteway_info = router_info['external_gateway_info']
+        @admin_state_up = router_info['admin_state_up']
+        @tenant_ip = router_info['tenant_ip']
+        @id = router_info['id']
+        @enable_snat = router_info['enable_snat']
+        @external_gateway_info = router_info['external_gateway_info']
+      end
+
     end
   end
 end

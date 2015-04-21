@@ -5,7 +5,7 @@ require File.join File.dirname(__FILE__), '../sahara_openstack.rb'
 Puppet::Type.type(:sahara_node_group_template).provide(:ruby) do
     def connection
       return @connection if @connection
-      debug "#{self} Call: connection"
+      debug "Call: connection"
       @connection = OpenStack::Connection.create({
                                       :username => @resource[:auth_username],
                                       :api_key => @resource[:auth_password],
@@ -17,8 +17,71 @@ Puppet::Type.type(:sahara_node_group_template).provide(:ruby) do
                                   })
     end
 
+    def network_connection
+      return @network_connection if @network_connection
+      debug "Call: network_connection"
+      @network_connection = OpenStack::Connection.create({
+                                      :username => @resource[:auth_username],
+                                      :api_key => @resource[:auth_password],
+                                      :auth_method =>"password",
+                                      :auth_url => @resource[:auth_url],
+                                      :authtenant_name => @resource[:auth_tenant_name],
+                                      :service_type=>"network",
+                                      :is_debug => @resource[:debug],
+                                  })
+    end
+
+    def compute_connection
+      return @compute_connection if @compute_connection
+      debug "Call: compute_connection"
+      @network_connection = OpenStack::Connection.create({
+                                      :username => @resource[:auth_username],
+                                      :api_key => @resource[:auth_password],
+                                      :auth_method =>"password",
+                                      :auth_url => @resource[:auth_url],
+                                      :authtenant_name => @resource[:auth_tenant_name],
+                                      :service_type=>"compute",
+                                      :is_debug => @resource[:debug],
+                                  })
+    end
+
+    def get_external_network_id(name=nil)
+      network_connection.list_routers.each do |router|
+        next unless router.external_gateway_info.is_a? Hash
+        if router.external_gateway_info['network_id']
+          return router.external_gateway_info['network_id'] if name.nil? or router.name == name
+        end
+      end
+      nil
+    end
+
+    def get_nova_flavor_id(name)
+      compute_connection.list_flavors.each do |f|
+        return f[:id] if f[:name] == name
+      end
+      nil
+    end
+
+    def set_floating_ip_pool_id
+      return if @resource[:floating_ip_pool] and @resource[:floating_ip_pool].length == 36 and @resource[:floating_ip_pool] =~ /^[a-z0-9\-]+$/
+      external_network_id = get_external_network_id @resource[:floating_ip_pool]
+      if external_network_id
+        debug "Set floating_ip_pool to: #{external_network_id}"
+        @resource[:floating_ip_pool] = external_network_id
+      end
+    end
+
+    def set_flavor_id
+      return if resource[:flavor_id].to_i.to_s == resource[:flavor_id]
+      flavor_id = get_nova_flavor_id resource[:flavor_id]
+      if flavor_id
+        debug "Set flavor_id to: #{flavor_id}"
+        resource[:flavor_id] = flavor_id
+      end
+    end
+
     def extract
-      debug "#{self} Call: extract"
+      debug "Call: extract"
       node_group_templates = connection.list_node_group_templates
       node_group_template = node_group_templates.find do |template|
         template.name == @resource[:name]
@@ -26,11 +89,13 @@ Puppet::Type.type(:sahara_node_group_template).provide(:ruby) do
       if node_group_template
         @property_hash = {
           :ensure => :present,
+          :id => node_group_template.id,
           :name => node_group_template.name,
           :description => node_group_template.description,
           :plugin_name => node_group_template.plugin_name,
           :flavor_id => node_group_template.flavor_id,
           :node_processes => node_group_template.node_processes,
+          :hadoop_version => node_group_template.hadoop_version,
           :floating_ip_pool => node_group_template.floating_ip_pool,
           :auto_security_group => node_group_template.auto_security_group,
         }
@@ -39,11 +104,18 @@ Puppet::Type.type(:sahara_node_group_template).provide(:ruby) do
           :ensure => :absent,
         }
       end
+      debug "Existing state: #{@property_hash.inspect}"
       @property_hash
     end
 
+    def present?
+      @resource[:ensure] == :present
+    end
+
     def exists?
-      debug "#{self} Call: exists?"
+      debug "Call: exists?"
+      set_floating_ip_pool_id if present?
+      set_flavor_id if present?
       extract unless @property_hash.any?
       result = @property_hash[:ensure] == :present
       debug "Result: #{result}"
@@ -64,6 +136,10 @@ Puppet::Type.type(:sahara_node_group_template).provide(:ruby) do
 
     def node_processes
       @property_hash[:node_processes]
+    end
+
+    def hadoop_version
+      @property_hash[:hadoop_version]
     end
 
     def floating_ip_pool
@@ -89,6 +165,10 @@ Puppet::Type.type(:sahara_node_group_template).provide(:ruby) do
     def node_processes=(value)
       @property_hash[:node_processes] = value
     end
+
+    def hadoop_version=(value)
+      @property_hash[:hadoop_version] = value
+    end
     
     def floating_ip_pool=(value)
       @property_hash[:floating_ip_pool] = value
@@ -99,27 +179,32 @@ Puppet::Type.type(:sahara_node_group_template).provide(:ruby) do
     end
 
     def destroy
-      debug "#{self} Call: destroy"
-      p @resource[:name]
+      debug "Call: destroy"
+      connection.delete_node_group_template @property_hash[:id] if @property_hash[:id]
     end
 
     def create
-      debug "#{self} Call: create"
+      debug "Call: create"
       @property_hash = {
+        :ensure => @resource[:ensure],
         :name => @resource[:name],
         :description => @resource[:description],
         :plugin_name => @resource[:plugin_name],
         :flavor_id => @resource[:flavor_id],
         :node_processes => @resource[:node_processes],
+        :hadoop_version => @resource[:hadoop_version],
         :floating_ip_pool => @resource[:floating_ip_pool],
         :auto_security_group => @resource[:auto_security_group],
       }
     end
 
     def flush
-      debug "#{self} Call: flush"
-       
-      connection.create_cluster_template @property_hash
+      debug "Call: flush"
+      options = @property_hash.reject { |k,v| [:id, :ensure].include? k }
+      if present?
+        destroy if @property_hash[:id] 
+        connection.create_node_group_template options
+      end
     end
 
 end
