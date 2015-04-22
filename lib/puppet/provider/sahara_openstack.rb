@@ -2,21 +2,21 @@ module OpenStack
   module Sahara
     class Cluster_Template
 
-    attr_reader :id
-    attr_reader :name
-    attr_reader :hadoop_version
-    attr_reader :neutron_management_network
-    attr_reader :description
-    attr_reader :node_groups
+      attr_reader :id
+      attr_reader :name
+      attr_reader :hadoop_version
+      attr_reader :neutron_management_network
+      attr_reader :description
+      attr_reader :node_groups
 
-    def initialize(ct_info)
-      @id  = ct_info['id']
-      @name  = ct_info['name']
-      @hadoop_version = ct_info['hadoop_version']
-      @neutron_management_network = ct_info['neutron_management_network']
-      @description = ct_info['description']
-      @node_groups = ct_info['node_groups']
-    end
+      def initialize(ct_info)
+        @id = ct_info['id']
+        @name = ct_info['name']
+        @hadoop_version = ct_info['hadoop_version']
+        @neutron_management_network = ct_info['neutron_management_network']
+        @description = ct_info['description']
+        @node_groups = ct_info['node_groups']
+      end
 
     end
   end
@@ -54,10 +54,9 @@ end
 
 module OpenStack
   module Sahara
-
     class Connection
 
-      attr_accessor   :connection
+      attr_accessor :connection
 
       def initialize(connection)
         @connection = connection
@@ -68,6 +67,8 @@ module OpenStack
         connection.authok
       end
 
+      #########################################################################
+
       def node_group_template_url(node_group_template_id = nil)
         url = '/node-group-templates'
         url += "/#{node_group_template_id}" if node_group_template_id
@@ -77,7 +78,7 @@ module OpenStack
       def list_node_group_templates
         response = connection.req('GET', node_group_template_url)
         volumes_hash = JSON.parse(response.body)['node_group_templates']
-        volumes_hash.inject([]) { |res, current| res << OpenStack::Sahara::Node_Group_Template.new(current); res}
+        volumes_hash.inject([]) { |res, current| res << OpenStack::Sahara::Node_Group_Template.new(current); res }
       end
 
       def get_node_group_template(node_group_template_id)
@@ -91,14 +92,14 @@ module OpenStack
         # check input data
         data = JSON.generate(options)
         response = connection.csreq('POST',
-                                     connection.service_host,
-                                     "#{connection.service_path}#{node_group_template_url}",
-                                     connection.service_port,
-                                     connection.service_scheme,
-                                     {
-                                         'content-type' => 'application/json',
-                                     },
-                                     data
+                                    connection.service_host,
+                                    "#{connection.service_path}#{node_group_template_url}",
+                                    connection.service_port,
+                                    connection.service_scheme,
+                                    {
+                                        'content-type' => 'application/json',
+                                    },
+                                    data
         )
         OpenStack::Exception.raise_exception(response) unless response.code.match(/^20.$/)
         node_group_template_info = JSON.parse(response.body)['node_group_template']
@@ -110,7 +111,7 @@ module OpenStack
         true
       end
 
-############################################################################
+      #########################################################################
 
       def cluster_template_url(cluster_template_id = nil)
         url = '/cluster-templates'
@@ -121,7 +122,7 @@ module OpenStack
       def list_cluster_templates
         response = connection.req('GET', cluster_template_url)
         cluster_templates_hash = JSON.parse(response.body)['cluster_templates']
-        cluster_templates_hash.inject([]) { |res, current| res << OpenStack::Sahara::Cluster_Template.new(current); res}
+        cluster_templates_hash.inject([]) { |res, current| res << OpenStack::Sahara::Cluster_Template.new(current); res }
       end
 
       def get_cluster_template(cluster_template_id)
@@ -135,14 +136,14 @@ module OpenStack
         # check input data
         data = JSON.generate(options)
         response = connection.csreq('POST',
-                                     connection.service_host,
-                                     "#{connection.service_path}#{cluster_template_url}",
-                                     connection.service_port,
-                                     connection.service_scheme,
-                                     {
-                                         'content-type' => 'application/json',
-                                     },
-                                     data
+                                    connection.service_host,
+                                    "#{connection.service_path}#{cluster_template_url}",
+                                    connection.service_port,
+                                    connection.service_scheme,
+                                    {
+                                        'content-type' => 'application/json',
+                                    },
+                                    data
         )
         OpenStack::Exception.raise_exception(response) unless response.code.match(/^20.$/)
         cluster_template_info = JSON.parse(response.body)['cluster_template']
@@ -161,6 +162,7 @@ end
 
 module OpenStack
   class << Connection
+
     def create(options = {:retry_auth => true})
       #call private constructor and grab instance vars
       connection = new(options)
@@ -177,7 +179,7 @@ module OpenStack
           OpenStack::Network::Connection.new(connection)
         when 'data_processing'
           OpenStack::Sahara::Connection.new(connection)
-       else
+        else
           raise Exception::InvalidArgument, "Invalid :service_type parameter: #{@service_type}"
       end
     end
