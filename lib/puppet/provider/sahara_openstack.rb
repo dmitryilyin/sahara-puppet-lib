@@ -5,6 +5,7 @@ module OpenStack
       attr_reader :id
       attr_reader :name
       attr_reader :hadoop_version
+      attr_reader :plugin_name
       attr_reader :neutron_management_network
       attr_reader :description
       attr_reader :node_groups
@@ -16,6 +17,12 @@ module OpenStack
         @neutron_management_network = ct_info['neutron_management_network']
         @description = ct_info['description']
         @node_groups = ct_info['node_groups']
+        @plugin_name = ct_info['plugin_name']
+      end
+
+      def [](key)
+        key = key.to_sym
+        send key
       end
 
     end
@@ -46,6 +53,11 @@ module OpenStack
         @hadoop_version = ngt_info['hadoop_version']
         @floating_ip_pool = ngt_info['floating_ip_pool']
         @auto_security_group = ngt_info['auto_security_group']
+      end
+
+      def [](key)
+        key = key.to_sym
+        send key
       end
 
     end
@@ -190,19 +202,112 @@ module OpenStack
   module Network
     class Router
 
+      attr_reader :id
+      attr_reader :name
+      attr_reader :admin_state_up
+      attr_reader :status
       attr_reader :external_gateway_info
+      attr_reader :tenant_ip
+      attr_reader :enable_snat
+      attr_reader :admin_state_up
 
       def initialize(router_info={})
         @name = router_info['name']
         @status = router_info['status']
-        @external_geteway_info = router_info['external_gateway_info']
+        @external_gateway_info = router_info['external_gateway_info']
         @admin_state_up = router_info['admin_state_up']
         @tenant_ip = router_info['tenant_ip']
         @id = router_info['id']
         @enable_snat = router_info['enable_snat']
-        @external_gateway_info = router_info['external_gateway_info']
       end
+    end
+  end
+end
 
+module OpenStack
+  module Network
+     class Network
+
+      attr_reader :id
+      attr_reader :name
+      attr_reader :admin_state_up
+      attr_reader :status
+      attr_reader :subnets
+      attr_reader :shared
+      attr_reader :tenant_id
+
+     def initialize(net_info={})
+       @id = net_info["id"]
+       @name = net_info["name"]
+       @admin_state_up = net_info["admin_state_up"]
+       @status = net_info["status"]
+       @subnets = net_info["subnets"]
+       @shared = net_info["shared"]
+       @tenant_id = net_info["tenant_id"]
+     end
+
+    end
+
+  end
+end
+
+module OpenStack
+  class Connection
+
+    def req(method, path, options = {})
+      server   = options[:server]   || @service_host
+      port     = options[:port]     || @service_port
+      scheme   = options[:scheme]   || @service_scheme
+      headers  = options[:headers]  || {'content-type' => 'application/json'}
+      data     = options[:data]
+      attempts = options[:attempts] || 0
+      path = @service_path + @quantum_version.to_s + path
+      res = csreq(method,server,path,port,scheme,headers,data,attempts)
+      res.code.match(/^20.$/) ? (return res) : OpenStack::Exception.raise_exception(res)
+    end
+
+    def initialize(options = {:retry_auth => true})
+      @retries = options[:retries] || 3
+      @authuser = options[:username] || (raise Exception::MissingArgument, "Must supply a :username")
+      @authkey = options[:api_key] || (raise Exception::MissingArgument, "Must supply an :api_key")
+      @auth_url = options[:auth_url] || (raise Exception::MissingArgument, "Must supply an :auth_url")
+      @authtenant = (options[:authtenant_id])? {:type => "tenantId", :value=>options[:authtenant_id]} : {:type=>"tenantName", :value=>(options[:authtenant_name] || options[:authtenant] || @authuser)}
+      @auth_method = options[:auth_method] || "password"
+      @service_name = options[:service_name] || nil
+      @service_type = options[:service_type] || "compute"
+      @region = options[:region] || @region = nil
+      @regions_list = {} # this is populated during authentication - from the returned service catalogue
+      @is_debug = options[:is_debug]
+      auth_uri=nil
+      begin
+        auth_uri=URI.parse(@auth_url)
+      rescue Exception => e
+        raise Exception::InvalidArgument, "Invalid :auth_url parameter: #{e.message}"
+      end
+      raise Exception::InvalidArgument, "Invalid :auth_url parameter." if auth_uri.nil? or auth_uri.host.nil?
+      @auth_host = auth_uri.host
+      @auth_port = auth_uri.port
+      @auth_scheme = auth_uri.scheme
+      @auth_path = auth_uri.path
+      @retry_auth = options[:retry_auth]
+      @proxy_host = options[:proxy_host]
+      @proxy_port = options[:proxy_port]
+      @authok = false
+      @http = {}
+      @quantum_version = 'v2.0' if @service_type == 'network'
+    end
+  end
+end
+
+module OpenStack
+  module Network
+    class Connection
+      def list_routers
+        response = @connection.req('GET', '/routers')
+        nets_hash = JSON.parse(response.body)['routers']
+        nets_hash.inject([]){|res, current| res << OpenStack::Network::Router.new(current); res}
+      end
+      alias :routers :list_routers
     end
   end
 end

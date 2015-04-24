@@ -56,8 +56,8 @@ Puppet::Type.type(:sahara_node_group_template).provide(:ruby) do
   end
 
   def get_nova_flavor_id(name)
-    compute_connection.list_flavors.each do |f|
-      return f[:id] if f[:name] == name
+    compute_connection.list_flavors.each do |flavor|
+      return flavor[:id] if flavor[:name] == name
     end
     nil
   end
