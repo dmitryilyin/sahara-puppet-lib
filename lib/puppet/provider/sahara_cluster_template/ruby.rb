@@ -39,8 +39,12 @@ Puppet::Type.type(:sahara_cluster_template).provide(:ruby) do
   end
 
   def get_private_network_id(name)
-    network_connection.list_networks.each do |network|
-      return network.id if network.name == name
+    begin
+      network_connection.list_networks.each do |network|
+        return network.id if network.name == name
+      end
+    rescue
+      return nil
     end
     nil
   end
@@ -162,7 +166,10 @@ Puppet::Type.type(:sahara_cluster_template).provide(:ruby) do
 
   def flush
     debug 'Call: flush'
-    options = @property_hash.reject { |k, v| [:id, :ensure].include? k }
+    options = @property_hash.reject do |k, v|
+      return true if [:id, :ensure].include? k
+      return true if k == :neutron_management_network and not v
+    end
     options[:node_groups].each do |node_group|
       node_group['count'] = node_group['count'].to_i if node_group['count']
     end
