@@ -34,7 +34,7 @@ Puppet::Type.type(:sahara_node_group_template).provide(:ruby) do
   def compute_connection
     return @compute_connection if @compute_connection
     debug 'Call: compute_connection'
-    @network_connection = OpenStack::Connection.create({
+    @compute_connection = OpenStack::Connection.create({
                                                            :username => @resource[:auth_username],
                                                            :api_key => @resource[:auth_password],
                                                            :auth_method => 'password',
@@ -46,11 +46,15 @@ Puppet::Type.type(:sahara_node_group_template).provide(:ruby) do
   end
 
   def get_external_network_id(name=nil)
-    network_connection.list_routers.each do |router|
-      next unless router.external_gateway_info.is_a? Hash
-      if router.external_gateway_info['network_id']
-        return router.external_gateway_info['network_id'] if name.nil? or router.name == name
+    begin
+      network_connection.list_routers.each do |router|
+        next unless router.external_gateway_info.is_a? Hash
+        if router.external_gateway_info['network_id']
+          return router.external_gateway_info['network_id'] if name.nil? or router.name == name
+        end
       end
+    rescue
+      return 'nova'
     end
     nil
   end
